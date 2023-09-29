@@ -1,4 +1,4 @@
-name: CI
+name: yml_parameters_have_description
 on: 
   pull_request:
     paths:
@@ -18,9 +18,6 @@ jobs:
           architecture: "x64"
         env:
           AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache
-          
-      - name: Set permissions
-        run: chmod +x tools/src/main/python/check_env_variables.py
 
       - name: Run Verification Script
-        run: tools/src/main/python/check_env_variables.py
+        run: python3 tools/src/main/python/check_env_variables.py
