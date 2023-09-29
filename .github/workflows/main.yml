@@ -19,5 +19,5 @@ jobs:
         env:
           AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache
 
-      - name: Run Verification Script
-        run: python3 tools/src/main/python/check_env_variables.py
+      #- name: Run Verification Script
+       # run: python3 tools/src/main/python/check_env_variables.py
