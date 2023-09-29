@@ -5,6 +5,7 @@ on:
       - 'application/src/main/resources/thingsboard.yml'
 jobs:
   build:
+    name: yml_parameters_have_description
     runs-on: ubuntu-20.04
 
     steps:
