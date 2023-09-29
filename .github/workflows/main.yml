@@ -1,4 +1,4 @@
-name: CI
+name: yml_parameters_have_description
 on: 
   pull_request:
     paths:
