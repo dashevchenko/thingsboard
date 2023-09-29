@@ -1206,3 +1206,4 @@ management:
         include: '${METRICS_ENDPOINTS_EXPOSE:info}'
 
 new: "true"
+new2: "true"
