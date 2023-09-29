@@ -81,7 +81,7 @@ def check_descriptions(properties):
 if __name__ == '__main__':
     sys. setrecursionlimit(10000)
     # Provide the path to the input YAML file and the output HTML file
-    input_yaml_file = "../../../../application/src/main/resources/thingsboard.yml"
+    input_yaml_file = "application/src/main/resources/thingsboard.yml"
 
     properties = extract_properties_with_comments(input_yaml_file)
 
