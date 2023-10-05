@@ -38,7 +38,12 @@ export enum EntityType {
   TB_RESOURCE = 'TB_RESOURCE',
   OTA_PACKAGE = 'OTA_PACKAGE',
   RPC = 'RPC',
-  QUEUE = 'QUEUE'
+  QUEUE = 'QUEUE',
+  NOTIFICATION = 'NOTIFICATION',
+  NOTIFICATION_REQUEST = 'NOTIFICATION_REQUEST',
+  NOTIFICATION_RULE = 'NOTIFICATION_RULE',
+  NOTIFICATION_TARGET = 'NOTIFICATION_TARGET',
+  NOTIFICATION_TEMPLATE = 'NOTIFICATION_TEMPLATE'
 }
 
 export enum AliasEntityType {
@@ -251,7 +256,7 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
         typePlural: 'entity.type-alarms',
         list: 'entity.list-of-alarms',
         nameStartsWith: 'entity.alarm-name-starts-with',
-        details: 'dashboard.dashboard-details',
+        details: 'alarm.alarm-details',
         noEntities: 'alarm.no-alarms-prompt',
         search: 'alarm.search',
         selectedEntities: 'alarm.selected-alarms'
@@ -261,6 +266,19 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
       EntityType.API_USAGE_STATE,
       {
         type: 'entity.type-api-usage-state'
+      }
+    ],
+    [
+      EntityType.WIDGET_TYPE,
+      {
+        type: 'entity.type-widget-type',
+        typePlural: 'entity.type-widget-types',
+        list: 'entity.list-of-widget-types',
+        details: 'widget.details',
+        add: 'widget.add-widget-type',
+        noEntities: 'widget.no-widget-types-text',
+        search: 'widget.search-widget-types',
+        selectedEntities: 'widget.selected-widget-types'
       }
     ],
     [
@@ -327,12 +345,69 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
       }
     ],
     [
+      EntityType.RPC,
+      {
+        type: 'entity.type-rpc'
+      }
+    ],
+    [
       EntityType.QUEUE,
       {
+        type: 'entity.type-queue',
         add: 'queue.add',
         search: 'queue.search',
         details: 'queue.details',
         selectedEntities: 'queue.selected-queues'
+      }
+    ],
+    [
+      EntityType.NOTIFICATION,
+      {
+        type: 'entity.type-notification',
+        noEntities: 'notification.no-inbox-notification',
+        search: 'notification.search-notification',
+        selectedEntities: 'notification.selected-notifications'
+      }
+    ],
+    [
+      EntityType.NOTIFICATION_REQUEST,
+      {
+        type: 'entity.type-notification-request',
+        noEntities: 'notification.no-notification-request',
+        selectedEntities: 'notification.selected-requests'
+      }
+    ],
+    [
+      EntityType.NOTIFICATION_RULE,
+      {
+        type: 'entity.type-notification-rule',
+        typePlural: 'entity.type-notification-rules',
+        list: 'entity.list-of-notification-rules',
+        noEntities: 'notification.no-rules-notification',
+        search: 'notification.search-rules',
+        selectedEntities: 'notification.selected-rules'
+      }
+    ],
+    [
+      EntityType.NOTIFICATION_TARGET,
+      {
+        type: 'entity.type-notification-target',
+        typePlural: 'entity.type-notification-targets',
+        list: 'entity.list-of-notification-targets',
+        noEntities: 'notification.no-recipients-notification',
+        search: 'notification.search-recipients',
+        selectedEntities: 'notification.selected-recipients'
+      }
+    ],
+    [
+      EntityType.NOTIFICATION_TEMPLATE,
+      {
+        type: 'entity.type-notification-template',
+        typePlural: 'entity.type-notification-templates',
+        list: 'entity.list-of-notification-templates',
+        noEntities: 'notification.no-notification-templates',
+        search: 'notification.search-templates',
+        selectedEntities: 'notification.selected-template'
       }
     ]
   ]
@@ -413,6 +488,12 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
       }
     ],
     [
+      EntityType.WIDGET_TYPE,
+      {
+        helpLinkId: 'widgetTypes'
+      }
+    ],
+    [
       EntityType.WIDGETS_BUNDLE,
       {
         helpLinkId: 'widgetsBundles'
@@ -421,7 +502,7 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
     [
       EntityType.TB_RESOURCE,
       {
-        helpLinkId: 'resources'
+        helpLinkId: 'lwm2mResourceLibrary'
       }
     ],
     [
@@ -445,15 +526,15 @@ export const baseDetailsPageByEntityType = new Map<EntityType, string>([
   [EntityType.CUSTOMER, '/customers'],
   [EntityType.USER, '/users'],
   [EntityType.DASHBOARD, '/dashboards'],
-  [EntityType.ASSET, '/assets'],
-  [EntityType.DEVICE, '/devices'],
+  [EntityType.ASSET, '/entities/assets'],
+  [EntityType.DEVICE, '/entities/devices'],
   [EntityType.DEVICE_PROFILE, '/profiles/deviceProfiles'],
   [EntityType.ASSET_PROFILE, '/profiles/assetProfiles'],
   [EntityType.RULE_CHAIN, '/ruleChains'],
-  [EntityType.EDGE, '/edgeInstances'],
-  [EntityType.ENTITY_VIEW, '/entityViews'],
-  [EntityType.TB_RESOURCE, '/settings/resources-library'],
-  [EntityType.OTA_PACKAGE, '/otaUpdates'],
+  [EntityType.EDGE, '/edgeManagement/instances'],
+  [EntityType.ENTITY_VIEW, '/entities/entityViews'],
+  [EntityType.TB_RESOURCE, '/resources/resources-library'],
+  [EntityType.OTA_PACKAGE, '/features/otaUpdates'],
   [EntityType.QUEUE, '/settings/queues']
 ]);
 

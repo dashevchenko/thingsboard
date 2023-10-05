@@ -24,10 +24,11 @@ import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.dao.entity.EntityDaoService;
 
 import java.util.List;
 
-public interface DashboardService {
+public interface DashboardService extends EntityDaoService {
     
     Dashboard findDashboardById(TenantId tenantId, DashboardId dashboardId);
 
@@ -35,7 +36,11 @@ public interface DashboardService {
 
     DashboardInfo findDashboardInfoById(TenantId tenantId, DashboardId dashboardId);
 
+    String findDashboardTitleById(TenantId tenantId, DashboardId dashboardId);
+
     ListenableFuture<DashboardInfo> findDashboardInfoByIdAsync(TenantId tenantId, DashboardId dashboardId);
+
+    Dashboard saveDashboard(Dashboard dashboard, boolean doValidate);
 
     Dashboard saveDashboard(Dashboard dashboard);
 

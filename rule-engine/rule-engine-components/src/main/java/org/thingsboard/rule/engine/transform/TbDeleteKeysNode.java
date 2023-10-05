@@ -32,7 +32,6 @@ import org.thingsboard.server.common.msg.TbMsgMetaData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
@@ -76,7 +75,7 @@ public class TbDeleteKeysNode implements TbNode {
                     keysToDelete.add(keyMetaData);
                 }
             });
-            keysToDelete.forEach(key -> metaDataMap.remove(key));
+            keysToDelete.forEach(metaDataMap::remove);
             metaData = new TbMsgMetaData(metaDataMap);
         } else {
             JsonNode dataNode = JacksonUtil.toJsonNode(msgData);
@@ -95,7 +94,7 @@ public class TbDeleteKeysNode implements TbNode {
         if (keysToDelete.isEmpty()) {
             ctx.tellSuccess(msg);
         } else {
-            ctx.tellSuccess(TbMsg.transformMsg(msg, msg.getType(), msg.getOriginator(), metaData, msgData));
+            ctx.tellSuccess(TbMsg.transformMsg(msg, metaData, msgData));
         }
     }
 

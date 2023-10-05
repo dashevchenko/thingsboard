@@ -18,7 +18,6 @@ package org.thingsboard.server.edge;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageLite;
 import org.junit.After;
@@ -28,8 +27,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cluster.TbClusterService;
+import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.Dashboard;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Device;
+import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.OtaPackageInfo;
 import org.thingsboard.server.common.data.SaveOtaPackageInfoRequest;
@@ -39,9 +41,6 @@ import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.alarm.AlarmSeverity;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
-import org.thingsboard.server.common.data.device.data.DefaultDeviceConfiguration;
-import org.thingsboard.server.common.data.device.data.DeviceData;
-import org.thingsboard.server.common.data.device.data.MqttDeviceTransportConfiguration;
 import org.thingsboard.server.common.data.device.profile.AlarmCondition;
 import org.thingsboard.server.common.data.device.profile.AlarmConditionFilter;
 import org.thingsboard.server.common.data.device.profile.AlarmConditionFilterKey;
@@ -56,11 +55,13 @@ import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
+import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.ota.ChecksumAlgorithm;
+import org.thingsboard.server.common.data.ota.OtaPackageType;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.query.EntityKeyValueType;
@@ -68,13 +69,14 @@ import org.thingsboard.server.common.data.query.FilterPredicateValue;
 import org.thingsboard.server.common.data.query.NumericFilterPredicate;
 import org.thingsboard.server.common.data.queue.Queue;
 import org.thingsboard.server.common.data.rule.RuleChain;
-import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.common.data.rule.RuleChainType;
 import org.thingsboard.server.controller.AbstractControllerTest;
 import org.thingsboard.server.dao.edge.EdgeEventService;
 import org.thingsboard.server.edge.imitator.EdgeImitator;
 import org.thingsboard.server.gen.edge.v1.AdminSettingsUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AssetProfileUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AssetUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.CustomerUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.DeviceProfileUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.DeviceUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.EdgeConfiguration;
@@ -82,6 +84,9 @@ import org.thingsboard.server.gen.edge.v1.QueueUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.RuleChainMetadataRequestMsg;
 import org.thingsboard.server.gen.edge.v1.RuleChainMetadataUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.RuleChainUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.SyncCompletedMsg;
+import org.thingsboard.server.gen.edge.v1.TenantProfileUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.TenantUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.UpdateMsgType;
 import org.thingsboard.server.gen.edge.v1.UplinkMsg;
 import org.thingsboard.server.gen.edge.v1.UserUpdateMsg;
@@ -94,18 +99,15 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.thingsboard.server.common.data.ota.OtaPackageType.FIRMWARE;
 
 @TestPropertySource(properties = {
         "edges.enabled=true",
+        "queue.rule-engine.stats.enabled=false",
+        "edges.storage.sleep_between_batches=1000"
 })
 abstract public class AbstractEdgeTest extends AbstractControllerTest {
 
     private static final String THERMOSTAT_DEVICE_PROFILE_NAME = "Thermostat";
-
-    protected Tenant savedTenant;
-    protected TenantId tenantId;
-    protected User tenantAdmin;
 
     protected DeviceProfile thermostatDeviceProfile;
 
@@ -122,32 +124,13 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
     protected TbClusterService clusterService;
 
     @Before
-    public void beforeTest() throws Exception {
-        loginSysAdmin();
-
-        Tenant tenant = new Tenant();
-        tenant.setTitle("My tenant");
-        savedTenant = doPost("/api/tenant", tenant, Tenant.class);
-        tenantId = savedTenant.getId();
-        Assert.assertNotNull(savedTenant);
-
-        tenantAdmin = new User();
-        tenantAdmin.setAuthority(Authority.TENANT_ADMIN);
-        tenantAdmin.setTenantId(savedTenant.getId());
-        tenantAdmin.setEmail("tenant2@thingsboard.org");
-        tenantAdmin.setFirstName("Joe");
-        tenantAdmin.setLastName("Downs");
-
-        tenantAdmin = createUserAndLogin(tenantAdmin, "testPassword1");
-        // sleep 0.5 second to avoid CREDENTIALS updated message for the user
-        // user credentials is going to be stored and updated event pushed to edge notification service
-        // while service will be processing this event edge could be already added and additional message will be pushed
-        Thread.sleep(500);
+    public void setupEdgeTest() throws Exception {
+        loginTenantAdmin();
 
         installation();
 
         edgeImitator = new EdgeImitator("localhost", 7070, edge.getRoutingKey(), edge.getSecret());
-        edgeImitator.expectMessageAmount(21);
+        edgeImitator.expectMessageAmount(26);
         edgeImitator.connect();
 
         requestEdgeRuleChainMetadata();
@@ -178,31 +161,32 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
     }
 
     @After
-    public void afterTest() throws Exception {
-        loginSysAdmin();
-
-        doDelete("/api/tenant/" + savedTenant.getUuidId())
-                .andExpect(status().isOk());
-
+    public void teardownEdgeTest() {
         try {
+            edgeImitator.expectMessageAmount(2);
+            loginTenantAdmin();
+            Assert.assertTrue(edgeImitator.waitForMessages());
+
+            doDelete("/api/edge/" + edge.getId().toString())
+                    .andExpect(status().isOk());
             edgeImitator.disconnect();
         } catch (Exception ignored) {}
     }
 
     private void installation() {
-        edge = doPost("/api/edge", constructEdge("Test Edge", "test"), Edge.class);
-
         thermostatDeviceProfile = this.createDeviceProfile(THERMOSTAT_DEVICE_PROFILE_NAME,
                 createMqttDeviceProfileTransportConfiguration(new JsonTransportPayloadConfiguration(), false));
-
         extendDeviceProfileData(thermostatDeviceProfile);
         thermostatDeviceProfile = doPost("/api/deviceProfile", thermostatDeviceProfile, DeviceProfile.class);
 
         Device savedDevice = saveDevice("Edge Device 1", THERMOSTAT_DEVICE_PROFILE_NAME);
-        doPost("/api/edge/" + edge.getUuidId()
-                + "/device/" + savedDevice.getUuidId(), Device.class);
 
         Asset savedAsset = saveAsset("Edge Asset 1");
+
+        edge = doPost("/api/edge", constructEdge("Test Edge", "test"), Edge.class);
+
+        doPost("/api/edge/" + edge.getUuidId()
+                + "/device/" + savedDevice.getUuidId(), Device.class);
         doPost("/api/edge/" + edge.getUuidId()
                 + "/asset/" + savedAsset.getUuidId(), Asset.class);
     }
@@ -241,18 +225,8 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
 
         validateEdgeConfiguration();
 
-        // 5 messages
-        // - 2 from device profile fetcher (default and thermostat)
-        // - 1 from device fetcher
-        // - 1 from device profile controller (thermostat)
-        // - 1 from device controller (thermostat)
-        validateDeviceProfiles();
-
-        // 2 messages - 1 from device fetcher and 1 from device controller
-        validateDevices();
-
-        // 2 messages - 1 from asset fetcher and 1 from asset controller
-        validateAssets();
+        // 1 message from queue fetcher
+        validateQueues();
 
         // 2 messages - 1 from rule chain fetcher and 1 from rule chain controller
         UUID ruleChainUUID = validateRuleChains();
@@ -263,17 +237,40 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         // 4 messages - 4 messages from fetcher - 2 from system level ('mail', 'mailTemplates') and 2 from admin level ('mail', 'mailTemplates')
         validateAdminSettings();
 
-        // 3 messages
+        // 5 messages
+        // - 1 from default profile fetcher
+        // - 2 from device profile fetcher (default and thermostat)
+        // - 1 from device fetcher
+        // - 1 from device controller (thermostat)
+        validateDeviceProfiles();
+
+        // 4 messages
+        // - 1 from default profile fetcher
         // - 1 message from asset profile fetcher
         // - 1 message from asset fetcher
         // - 1 message from asset controller
         validateAssetProfiles();
 
-        // 1 message from queue fetcher
-        validateQueues();
+        // 2 messages - 1 from device fetcher and 1 from device controller
+        validateDevices();
+
+        // 2 messages - 1 from asset fetcher and 1 from asset controller
+        validateAssets();
+
+        // 1 message from public customer fetcher
+        validatePublicCustomer();
 
         // 1 message from user fetcher
         validateUsers();
+
+        // 1 from tenant fetcher
+        validateTenant();
+
+        // 1 from tenant profile fetcher
+        validateTenantProfile();
+
+        // 1 message sync completed
+        validateSyncCompleted();
     }
 
     private void validateEdgeConfiguration() throws Exception {
@@ -282,12 +279,35 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         testAutoGeneratedCodeByProtobuf(configuration);
     }
 
+    private void validateTenant() throws Exception {
+        Optional<TenantUpdateMsg> tenantUpdateMsgOpt = edgeImitator.findMessageByType(TenantUpdateMsg.class);
+        Assert.assertTrue(tenantUpdateMsgOpt.isPresent());
+        TenantUpdateMsg tenantUpdateMsg = tenantUpdateMsgOpt.get();
+        Assert.assertEquals(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, tenantUpdateMsg.getMsgType());
+        UUID tenantUUID = new UUID(tenantUpdateMsg.getIdMSB(), tenantUpdateMsg.getIdLSB());
+        Tenant tenant = doGet("/api/tenant/" + tenantUUID, Tenant.class);
+        Assert.assertNotNull(tenant);
+        testAutoGeneratedCodeByProtobuf(tenantUpdateMsg);
+    }
+
+    private void validateTenantProfile() throws Exception {
+        Optional<TenantProfileUpdateMsg> tenantProfileUpdateMsgOpt = edgeImitator.findMessageByType(TenantProfileUpdateMsg.class);
+        Assert.assertTrue(tenantProfileUpdateMsgOpt.isPresent());
+        TenantProfileUpdateMsg tenantProfileUpdateMsg = tenantProfileUpdateMsgOpt.get();
+        Assert.assertEquals(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, tenantProfileUpdateMsg.getMsgType());
+        UUID tenantProfileUUID = new UUID(tenantProfileUpdateMsg.getIdMSB(), tenantProfileUpdateMsg.getIdLSB());
+        Tenant tenant = doGet("/api/tenant/" + tenantId.getId(), Tenant.class);
+        Assert.assertNotNull(tenant);
+        Assert.assertEquals(tenantProfileUUID, tenant.getTenantProfileId().getId());
+        testAutoGeneratedCodeByProtobuf(tenantProfileUpdateMsg);
+    }
+
     private void validateDeviceProfiles() throws Exception {
         List<DeviceProfileUpdateMsg> deviceProfileUpdateMsgList = edgeImitator.findAllMessagesByType(DeviceProfileUpdateMsg.class);
-        // default msg
-        // thermostat msg from fetcher
+        // default msg default device profile from fetcher
+        // default msg device profile from fetcher
+        // thermostat msg from device profile fetcher
         // thermostat msg from device fetcher
-        // thermostat msg from controller
         // thermostat msg from creation of device
         Assert.assertEquals(5, deviceProfileUpdateMsgList.size());
         Optional<DeviceProfileUpdateMsg> thermostatProfileUpdateMsgOpt =
@@ -317,9 +337,9 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         UUID deviceUUID = new UUID(deviceUpdateMsg.getIdMSB(), deviceUpdateMsg.getIdLSB());
         Device device = doGet("/api/device/" + deviceUUID, Device.class);
         Assert.assertNotNull(device);
-        List<Device> edgeDevices = doGetTypedWithPageLink("/api/edge/" + edge.getUuidId() + "/devices?",
-                new TypeReference<PageData<Device>>() {}, new PageLink(100)).getData();
-        Assert.assertTrue(edgeDevices.contains(device));
+        List<DeviceInfo> edgeDevices = doGetTypedWithPageLink("/api/edge/" + edge.getUuidId() + "/devices?",
+                new TypeReference<PageData<DeviceInfo>>() {}, new PageLink(100)).getData();
+        Assert.assertTrue(edgeDevices.stream().map(DeviceInfo::getId).anyMatch(id -> id.equals(device.getId())));
 
         testAutoGeneratedCodeByProtobuf(deviceUpdateMsg);
     }
@@ -388,8 +408,8 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         }
     }
 
-    private void validateMailAdminSettings(AdminSettingsUpdateMsg adminSettingsUpdateMsg) throws JsonProcessingException {
-        JsonNode jsonNode = mapper.readTree(adminSettingsUpdateMsg.getJsonValue());
+    private void validateMailAdminSettings(AdminSettingsUpdateMsg adminSettingsUpdateMsg) {
+        JsonNode jsonNode = JacksonUtil.toJsonNode(adminSettingsUpdateMsg.getJsonValue());
         Assert.assertNotNull(jsonNode.get("mailFrom"));
         Assert.assertNotNull(jsonNode.get("smtpProtocol"));
         Assert.assertNotNull(jsonNode.get("smtpHost"));
@@ -397,8 +417,8 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         Assert.assertNotNull(jsonNode.get("timeout"));
     }
 
-    private void validateMailTemplatesAdminSettings(AdminSettingsUpdateMsg adminSettingsUpdateMsg) throws JsonProcessingException {
-        JsonNode jsonNode = mapper.readTree(adminSettingsUpdateMsg.getJsonValue());
+    private void validateMailTemplatesAdminSettings(AdminSettingsUpdateMsg adminSettingsUpdateMsg) {
+        JsonNode jsonNode = JacksonUtil.toJsonNode(adminSettingsUpdateMsg.getJsonValue());
         Assert.assertNotNull(jsonNode.get("accountActivated"));
         Assert.assertNotNull(jsonNode.get("accountLockout"));
         Assert.assertNotNull(jsonNode.get("activation"));
@@ -409,7 +429,7 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
 
     private void validateAssetProfiles() throws Exception {
         List<AssetProfileUpdateMsg> assetProfileUpdateMsgs = edgeImitator.findAllMessagesByType(AssetProfileUpdateMsg.class);
-        Assert.assertEquals(3, assetProfileUpdateMsgs.size());
+        Assert.assertEquals(4, assetProfileUpdateMsgs.size());
         AssetProfileUpdateMsg assetProfileUpdateMsg = assetProfileUpdateMsgs.get(0);
         Assert.assertEquals(UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE, assetProfileUpdateMsg.getMsgType());
         UUID assetProfileUUID = new UUID(assetProfileUpdateMsg.getIdMSB(), assetProfileUpdateMsg.getIdLSB());
@@ -443,16 +463,27 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         UUID userUUID = new UUID(userUpdateMsg.getIdMSB(), userUpdateMsg.getIdLSB());
         User user = doGet("/api/user/" + userUUID, User.class);
         Assert.assertNotNull(user);
-        Assert.assertEquals("tenant2@thingsboard.org", userUpdateMsg.getEmail());
+        Assert.assertEquals("testtenant@thingsboard.org", userUpdateMsg.getEmail());
         testAutoGeneratedCodeByProtobuf(userUpdateMsg);
     }
 
-    protected Device saveDeviceOnCloudAndVerifyDeliveryToEdge() throws Exception {
-        // create ota package
-        edgeImitator.expectMessageAmount(1);
-        OtaPackageInfo firmwareOtaPackageInfo = saveOtaPackageInfo(thermostatDeviceProfile.getId());
-        Assert.assertTrue(edgeImitator.waitForMessages());
+    private void validatePublicCustomer() throws Exception {
+        Optional<CustomerUpdateMsg> customerUpdateMsgOpt = edgeImitator.findMessageByType(CustomerUpdateMsg.class);
+        Assert.assertTrue(customerUpdateMsgOpt.isPresent());
+        CustomerUpdateMsg customerUpdateMsg = customerUpdateMsgOpt.get();
+        Assert.assertEquals(UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE, customerUpdateMsg.getMsgType());
+        UUID customerUUID = new UUID(customerUpdateMsg.getIdMSB(), customerUpdateMsg.getIdLSB());
+        Customer customer = doGet("/api/customer/" + customerUUID, Customer.class);
+        Assert.assertNotNull(customer);
+        Assert.assertTrue(customer.isPublic());
+    }
 
+    private void validateSyncCompleted() {
+        Optional<SyncCompletedMsg> syncCompletedMsgOpt = edgeImitator.findMessageByType(SyncCompletedMsg.class);
+        Assert.assertTrue(syncCompletedMsgOpt.isPresent());
+    }
+
+    protected Device saveDeviceOnCloudAndVerifyDeliveryToEdge() throws Exception {
         // create device and assign to edge
         Device savedDevice = saveDevice(StringUtils.randomAlphanumeric(15), thermostatDeviceProfile.getName());
         edgeImitator.expectMessageAmount(2); // device and device profile messages
@@ -472,46 +503,14 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         Assert.assertEquals(UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE, deviceProfileUpdateMsg.getMsgType());
         Assert.assertEquals(thermostatDeviceProfile.getUuidId().getMostSignificantBits(), deviceProfileUpdateMsg.getIdMSB());
         Assert.assertEquals(thermostatDeviceProfile.getUuidId().getLeastSignificantBits(), deviceProfileUpdateMsg.getIdLSB());
-
-        // update device
-        edgeImitator.expectMessageAmount(1);
-        savedDevice.setFirmwareId(firmwareOtaPackageInfo.getId());
-
-        DeviceData deviceData = new DeviceData();
-        deviceData.setConfiguration(new DefaultDeviceConfiguration());
-        MqttDeviceTransportConfiguration transportConfiguration = new MqttDeviceTransportConfiguration();
-        transportConfiguration.getProperties().put("topic", "tb_rule_engine.thermostat");
-        deviceData.setTransportConfiguration(transportConfiguration);
-        savedDevice.setDeviceData(deviceData);
-
-        savedDevice = doPost("/api/device", savedDevice, Device.class);
-        Assert.assertTrue(edgeImitator.waitForMessages());
-        AbstractMessage latestMessage = edgeImitator.getLatestMessage();
-        Assert.assertTrue(latestMessage instanceof DeviceUpdateMsg);
-        deviceUpdateMsg = (DeviceUpdateMsg) latestMessage;
-        Assert.assertEquals(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, deviceUpdateMsg.getMsgType());
-        Assert.assertEquals(savedDevice.getUuidId().getMostSignificantBits(), deviceUpdateMsg.getIdMSB());
-        Assert.assertEquals(savedDevice.getUuidId().getLeastSignificantBits(), deviceUpdateMsg.getIdLSB());
-        Assert.assertEquals(savedDevice.getName(), deviceUpdateMsg.getName());
-        Assert.assertEquals(savedDevice.getType(), deviceUpdateMsg.getType());
-        Assert.assertEquals(firmwareOtaPackageInfo.getUuidId().getMostSignificantBits(), deviceUpdateMsg.getFirmwareIdMSB());
-        Assert.assertEquals(firmwareOtaPackageInfo.getUuidId().getLeastSignificantBits(), deviceUpdateMsg.getFirmwareIdLSB());
-        Optional<DeviceData> deviceDataOpt =
-                dataDecodingEncodingService.decode(deviceUpdateMsg.getDeviceDataBytes().toByteArray());
-        Assert.assertTrue(deviceDataOpt.isPresent());
-        deviceData = deviceDataOpt.get();
-        Assert.assertTrue(deviceData.getTransportConfiguration() instanceof MqttDeviceTransportConfiguration);
-        MqttDeviceTransportConfiguration mqttDeviceTransportConfiguration =
-                (MqttDeviceTransportConfiguration) deviceData.getTransportConfiguration();
-        Assert.assertEquals("tb_rule_engine.thermostat", mqttDeviceTransportConfiguration.getProperties().get("topic"));
         return savedDevice;
     }
 
     protected Device findDeviceByName(String deviceName) throws Exception {
-        List<Device> edgeDevices = doGetTypedWithPageLink("/api/edge/" + edge.getUuidId() + "/devices?",
-                new TypeReference<PageData<Device>>() {
+        List<DeviceInfo> edgeDevices = doGetTypedWithPageLink("/api/edge/" + edge.getUuidId() + "/devices?",
+                new TypeReference<PageData<DeviceInfo>>() {
                 }, new PageLink(100)).getData();
-        Optional<Device> foundDevice = edgeDevices.stream().filter(d -> d.getName().equals(deviceName)).findAny();
+        Optional<DeviceInfo> foundDevice = edgeDevices.stream().filter(d -> d.getName().equals(deviceName)).findAny();
         Assert.assertTrue(foundDevice.isPresent());
         Device device = foundDevice.get();
         Assert.assertEquals(deviceName, device.getName());
@@ -542,13 +541,13 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         return doPost("/api/asset", asset, Asset.class);
     }
 
-    protected OtaPackageInfo saveOtaPackageInfo(DeviceProfileId deviceProfileId) {
+    protected OtaPackageInfo saveOtaPackageInfo(DeviceProfileId deviceProfileId, OtaPackageType type) {
         SaveOtaPackageInfoRequest firmwareInfo = new SaveOtaPackageInfoRequest();
         firmwareInfo.setDeviceProfileId(deviceProfileId);
-        firmwareInfo.setType(FIRMWARE);
-        firmwareInfo.setTitle("Firmware Edge " + StringUtils.randomAlphanumeric(3));
+        firmwareInfo.setType(type);
+        firmwareInfo.setTitle(type.name() + " Edge " + StringUtils.randomAlphanumeric(3));
         firmwareInfo.setVersion("v1.0");
-        firmwareInfo.setTag("My firmware #1 v1.0");
+        firmwareInfo.setTag("My " + type.name() + " #1 v1.0");
         firmwareInfo.setUsesUrl(true);
         firmwareInfo.setUrl("http://localhost:8080/v1/package");
         firmwareInfo.setAdditionalInfo(JacksonUtil.newObjectNode());
@@ -583,6 +582,49 @@ abstract public class AbstractEdgeTest extends AbstractControllerTest {
         Assert.assertEquals(source.hashCode(), target.hashCode());
     }
 
+    protected RuleChainId createEdgeRuleChainAndAssignToEdge(String ruleChainName) throws Exception {
+        edgeImitator.expectMessageAmount(1);
+        RuleChain ruleChain = new RuleChain();
+        ruleChain.setName(ruleChainName);
+        ruleChain.setType(RuleChainType.EDGE);
+        RuleChain savedRuleChain = doPost("/api/ruleChain", ruleChain, RuleChain.class);
+        doPost("/api/edge/" + edge.getUuidId()
+                + "/ruleChain/" + savedRuleChain.getUuidId(), RuleChain.class);
+        Assert.assertTrue(edgeImitator.waitForMessages());
+        return savedRuleChain.getId();
+    }
 
+    protected void unAssignFromEdgeAndDeleteRuleChain(RuleChainId ruleChainId) throws Exception {
+        edgeImitator.expectMessageAmount(1);
+        doDelete("/api/edge/" + edge.getUuidId()
+                + "/ruleChain/" + ruleChainId.getId(), RuleChain.class);
+        Assert.assertTrue(edgeImitator.waitForMessages());
+
+        // delete rule chain
+        doDelete("/api/ruleChain/" + ruleChainId.getId())
+                .andExpect(status().isOk());
+    }
+
+    protected DashboardId createDashboardAndAssignToEdge(String dashboardName) throws Exception {
+        edgeImitator.expectMessageAmount(1);
+        Dashboard dashboard = new Dashboard();
+        dashboard.setTitle(dashboardName);
+        Dashboard savedDashboard = doPost("/api/dashboard", dashboard, Dashboard.class);
+        doPost("/api/edge/" + edge.getUuidId()
+                + "/dashboard/" + savedDashboard.getUuidId(), Dashboard.class);
+        Assert.assertTrue(edgeImitator.waitForMessages());
+        return savedDashboard.getId();
+    }
+
+    protected void unAssignFromEdgeAndDeleteDashboard(DashboardId dashboardId) throws Exception {
+        edgeImitator.expectMessageAmount(1);
+        doDelete("/api/edge/" + edge.getUuidId()
+                + "/dashboard/" + dashboardId.getId(), RuleChain.class);
+        Assert.assertTrue(edgeImitator.waitForMessages());
+
+        // delete dashboard
+        doDelete("/api/dashboard/" + dashboardId.getId())
+                .andExpect(status().isOk());
+    }
 
 }

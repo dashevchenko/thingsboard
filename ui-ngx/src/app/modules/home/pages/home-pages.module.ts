@@ -38,6 +38,11 @@ import { OtaUpdateModule } from '@home/pages/ota-update/ota-update.module';
 import { VcModule } from '@home/pages/vc/vc.module';
 import { AssetProfileModule } from '@home/pages/asset-profile/asset-profile.module';
 import { ProfilesModule } from '@home/pages/profiles/profiles.module';
+import { AlarmModule } from '@home/pages/alarm/alarm.module';
+import { EntitiesModule } from '@home/pages/entities/entities.module';
+import { FeaturesModule } from '@home/pages/features/features.module';
+import { NotificationModule } from '@home/pages/notification/notification.module';
+import { AccountModule } from '@home/pages/account/account.module';
 
 @NgModule({
   exports: [
@@ -50,8 +55,12 @@ import { ProfilesModule } from '@home/pages/profiles/profiles.module';
     DeviceProfileModule,
     AssetProfileModule,
     ProfilesModule,
+    EntitiesModule,
+    FeaturesModule,
+    NotificationModule,
     DeviceModule,
     AssetModule,
+    AlarmModule,
     EdgeModule,
     EntityViewModule,
     CustomerModule,
@@ -62,7 +71,8 @@ import { ProfilesModule } from '@home/pages/profiles/profiles.module';
     ApiUsageModule,
     OtaUpdateModule,
     UserModule,
-    VcModule
+    VcModule,
+    AccountModule
   ]
 })
 export class HomePagesModule { }

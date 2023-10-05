@@ -21,6 +21,8 @@ import { HttpClient } from '@angular/common/http';
 import {
   AdminSettings,
   AutoCommitSettings,
+  MailConfigTemplate,
+  FeaturesInfo,
   JwtSettings,
   MailServerSettings,
   RepositorySettings,
@@ -130,5 +132,21 @@ export class AdminService {
 
   public checkUpdates(config?: RequestConfig): Observable<UpdateMessage> {
     return this.http.get<UpdateMessage>(`/api/admin/updates`, defaultHttpOptionsFromConfig(config));
+  }
+
+  public getFeaturesInfo(config?: RequestConfig): Observable<FeaturesInfo> {
+    return this.http.get<FeaturesInfo>('/api/admin/featuresInfo', defaultHttpOptionsFromConfig(config));
+  }
+
+  public getLoginProcessingUrl(config?: RequestConfig): Observable<string> {
+    return this.http.get<string>(`/api/admin/mail/oauth2/loginProcessingUrl`, defaultHttpOptionsFromConfig(config));
+  }
+
+  public generateAccessToken(config?: RequestConfig): Observable<string> {
+    return this.http.get<string>(`/api/admin/mail/oauth2/authorize`, defaultHttpOptionsFromConfig(config));
+  }
+
+  public getMailConfigTemplate(config?: RequestConfig): Observable<Array<MailConfigTemplate>> {
+    return this.http.get<Array<MailConfigTemplate>>('/api/mail/config/template', defaultHttpOptionsFromConfig(config));
   }
 }

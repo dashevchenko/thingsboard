@@ -17,6 +17,7 @@ package org.thingsboard.server.service.install.update;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -26,6 +27,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
+import org.thingsboard.rule.engine.api.TbNode;
 import org.thingsboard.rule.engine.flow.TbRuleChainInputNode;
 import org.thingsboard.rule.engine.flow.TbRuleChainInputNodeConfiguration;
 import org.thingsboard.rule.engine.profile.TbDeviceProfileNode;
@@ -45,7 +47,9 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.kv.BaseReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.ReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.thingsboard.server.common.data.msg.TbNodeConnectionType;
 import org.thingsboard.server.common.data.page.PageData;
+import org.thingsboard.server.common.data.page.PageDataIterable;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.common.data.query.DynamicValue;
@@ -62,6 +66,7 @@ import org.thingsboard.server.common.data.rule.RuleChainMetaData;
 import org.thingsboard.server.common.data.rule.RuleChainType;
 import org.thingsboard.server.common.data.rule.RuleNode;
 import org.thingsboard.server.common.data.tenant.profile.TenantProfileQueueConfiguration;
+import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.alarm.AlarmDao;
 import org.thingsboard.server.dao.audit.AuditLogDao;
@@ -73,19 +78,21 @@ import org.thingsboard.server.dao.model.sql.DeviceProfileEntity;
 import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.rule.RuleChainService;
+import org.thingsboard.server.dao.sql.JpaExecutorService;
 import org.thingsboard.server.dao.sql.device.DeviceProfileRepository;
 import org.thingsboard.server.dao.tenant.TenantProfileService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
+import org.thingsboard.server.service.component.ComponentDiscoveryService;
 import org.thingsboard.server.service.install.InstallScripts;
 import org.thingsboard.server.service.install.SystemDataLoaderService;
-import org.thingsboard.server.service.install.TbRuleEngineQueueConfigService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.thingsboard.server.common.data.StringUtils.isBlank;
@@ -94,6 +101,8 @@ import static org.thingsboard.server.common.data.StringUtils.isBlank;
 @Profile("install")
 @Slf4j
 public class DefaultDataUpdateService implements DataUpdateService {
+
+    private static final int MAX_PENDING_SAVE_RULE_NODE_FUTURES = 100;
 
     @Autowired
     private TenantService tenantService;
@@ -133,7 +142,7 @@ public class DefaultDataUpdateService implements DataUpdateService {
     private QueueService queueService;
 
     @Autowired
-    private TbRuleEngineQueueConfigService queueConfig;
+    private ComponentDiscoveryService componentDiscoveryService;
 
     @Autowired
     private SystemDataLoaderService systemDataLoaderService;
@@ -146,6 +155,9 @@ public class DefaultDataUpdateService implements DataUpdateService {
 
     @Autowired
     private EdgeEventDao edgeEventDao;
+
+    @Autowired
+    JpaExecutorService jpaExecutorService;
 
     @Override
     public void updateData(String fromVersion) throws Exception {
@@ -195,16 +207,88 @@ public class DefaultDataUpdateService implements DataUpdateService {
                 } else {
                     log.info("Skipping audit logs migration");
                 }
-                boolean skipEdgeEventsMigration = getEnv("TB_SKIP_EDGE_EVENTS_MIGRATION", false);
-                if (!skipEdgeEventsMigration) {
-                    log.info("Starting edge events migration. Can be skipped with TB_SKIP_EDGE_EVENTS_MIGRATION env variable set to true");
-                    edgeEventDao.migrateEdgeEvents();
-                } else {
-                    log.info("Skipping edge events migration");
-                }
+                migrateEdgeEvents("Starting edge events migration. ");
+                break;
+            case "3.5.1":
+                log.info("Updating data from version 3.5.1 to 3.6.0 ...");
+                migrateEdgeEvents("Starting edge events migration - adding seq_id column. ");
                 break;
             default:
                 throw new RuntimeException("Unable to update data, unsupported fromVersion: " + fromVersion);
+        }
+    }
+
+    private void migrateEdgeEvents(String logPrefix) {
+        boolean skipEdgeEventsMigration = getEnv("TB_SKIP_EDGE_EVENTS_MIGRATION", false);
+        if (!skipEdgeEventsMigration) {
+            log.info(logPrefix + "Can be skipped with TB_SKIP_EDGE_EVENTS_MIGRATION env variable set to true");
+            edgeEventDao.migrateEdgeEvents();
+        } else {
+            log.info("Skipping edge events migration");
+        }
+    }
+
+    @Override
+    public void upgradeRuleNodes() {
+        try {
+            var futures = new ArrayList<ListenableFuture<?>>(100);
+            int totalRuleNodesUpgraded = 0;
+            log.info("Starting rule nodes upgrade ...");
+            var nodeClassToVersionMap = componentDiscoveryService.getVersionedNodes();
+            log.debug("Found {} versioned nodes to check for upgrade!", nodeClassToVersionMap.size());
+            for (var ruleNodeClassInfo : nodeClassToVersionMap) {
+                var ruleNodeType = ruleNodeClassInfo.getClassName();
+                var ruleNodeTypeForLogs = ruleNodeClassInfo.getSimpleName();
+                var toVersion = ruleNodeClassInfo.getCurrentVersion();
+                log.debug("Going to check for nodes with type: {} to upgrade to version: {}.", ruleNodeTypeForLogs, toVersion);
+                var ruleNodesToUpdate = new PageDataIterable<>(
+                        pageLink -> ruleChainService.findAllRuleNodesByTypeAndVersionLessThan(ruleNodeType, toVersion, pageLink), 1024
+                );
+                if (Iterables.isEmpty(ruleNodesToUpdate)) {
+                    log.debug("There are no active nodes with type: {}, or all nodes with this type already set to latest version!", ruleNodeTypeForLogs);
+                } else {
+                    for (var ruleNode : ruleNodesToUpdate) {
+                        var ruleNodeId = ruleNode.getId();
+                        var oldConfiguration = ruleNode.getConfiguration();
+                        int fromVersion = ruleNode.getConfigurationVersion();
+                        log.debug("Going to upgrade rule node with id: {} type: {} fromVersion: {} toVersion: {}",
+                                ruleNodeId, ruleNodeTypeForLogs, fromVersion, toVersion);
+                        try {
+                            var tbVersionedNode = (TbNode) ruleNodeClassInfo.getClazz().getDeclaredConstructor().newInstance();
+                            TbPair<Boolean, JsonNode> upgradeRuleNodeConfigurationResult = tbVersionedNode.upgrade(fromVersion, oldConfiguration);
+                            if (upgradeRuleNodeConfigurationResult.getFirst()) {
+                                ruleNode.setConfiguration(upgradeRuleNodeConfigurationResult.getSecond());
+                            }
+                            ruleNode.setConfigurationVersion(toVersion);
+                            futures.add(jpaExecutorService.submit(() -> {
+                                ruleChainService.saveRuleNode(TenantId.SYS_TENANT_ID, ruleNode);
+                                log.debug("Successfully upgrade rule node with id: {} type: {} fromVersion: {} toVersion: {}",
+                                        ruleNodeId, ruleNodeTypeForLogs, fromVersion, toVersion);
+                            }));
+                            if (futures.size() >= MAX_PENDING_SAVE_RULE_NODE_FUTURES) {
+                                log.info("{} upgraded rule nodes so far ...",
+                                        totalRuleNodesUpgraded += awaitFuturesToCompleteAndGetCount(futures));
+                                futures.clear();
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to upgrade rule node with id: {} type: {} fromVersion: {} toVersion: {} due to: ",
+                                    ruleNodeId, ruleNodeTypeForLogs, fromVersion, toVersion, e);
+                        }
+                    }
+                }
+            }
+            log.info("Finished rule nodes upgrade. Upgraded rule nodes count: {}",
+                    totalRuleNodesUpgraded + awaitFuturesToCompleteAndGetCount(futures));
+        } catch (Exception e) {
+            log.error("Unexpected error during rule nodes upgrade: ", e);
+        }
+    }
+
+    private int awaitFuturesToCompleteAndGetCount(List<ListenableFuture<?>> futures) {
+        try {
+            return Futures.allAsList(futures).get().size();
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RuntimeException("Failed to process save rule nodes requests due to: ", e);
         }
     }
 
@@ -441,8 +525,8 @@ public class DefaultDataUpdateService implements DataUpdateService {
 
                             md.getNodes().add(ruleNode);
                             md.setFirstNodeIndex(newIdx);
-                            md.addConnectionInfo(newIdx, oldIdx, "Success");
-                            ruleChainService.saveRuleChainMetaData(tenant.getId(), md);
+                            md.addConnectionInfo(newIdx, oldIdx, TbNodeConnectionType.SUCCESS);
+                            ruleChainService.saveRuleChainMetaData(tenant.getId(), md, Function.identity());
                         }
                     } catch (Exception e) {
                         log.error("[{}] Unable to update Tenant: {}", tenant.getId(), tenant.getName(), e);
@@ -556,13 +640,13 @@ public class DefaultDataUpdateService implements DataUpdateService {
             };
 
     private void updateTenantAlarmsCustomer(TenantId tenantId, String name, AtomicLong processed) {
-        AlarmQuery alarmQuery = new AlarmQuery(null, new TimePageLink(1000), null, null, false);
+        AlarmQuery alarmQuery = new AlarmQuery(null, new TimePageLink(1000), null, null, null, false);
         PageData<AlarmInfo> alarms = alarmDao.findAlarms(tenantId, alarmQuery);
         boolean hasNext = true;
         while (hasNext) {
             for (Alarm alarm : alarms.getData()) {
                 if (alarm.getCustomerId() == null && alarm.getOriginator() != null) {
-                    alarm.setCustomerId(entityService.fetchEntityCustomerId(tenantId, alarm.getOriginator()));
+                    alarm.setCustomerId(entityService.fetchEntityCustomerId(tenantId, alarm.getOriginator()).get());
                     alarmDao.save(tenantId, alarm);
                 }
                 if (processed.incrementAndGet() % 1000 == 0) {
@@ -672,7 +756,7 @@ public class DefaultDataUpdateService implements DataUpdateService {
         return mainQueueConfiguration;
     }
 
-    private boolean getEnv(String name, boolean defaultValue) {
+    public static boolean getEnv(String name, boolean defaultValue) {
         String env = System.getenv(name);
         if (env == null) {
             return defaultValue;

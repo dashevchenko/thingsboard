@@ -16,7 +16,7 @@
 
 import { Component } from '@angular/core';
 import { WidgetSettings, WidgetSettingsComponent } from '@shared/models/widget.models';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 
@@ -27,14 +27,14 @@ import { AppState } from '@core/core.state';
 })
 export class FlotPieWidgetSettingsComponent extends WidgetSettingsComponent {
 
-  flotPieWidgetSettingsForm: FormGroup;
+  flotPieWidgetSettingsForm: UntypedFormGroup;
 
   constructor(protected store: Store<AppState>,
-              private fb: FormBuilder) {
+              private fb: UntypedFormBuilder) {
     super(store);
   }
 
-  protected settingsForm(): FormGroup {
+  protected settingsForm(): UntypedFormGroup {
     return this.flotPieWidgetSettingsForm;
   }
 
@@ -59,9 +59,9 @@ export class FlotPieWidgetSettingsComponent extends WidgetSettingsComponent {
 
       // Common pie settings
 
-      radius: [settings.radius, [Validators.min(0)]],
-      innerRadius: [settings.innerRadius, [Validators.min(0)]],
-      tilt: [settings.tilt, [Validators.min(0)]],
+      radius: [settings.radius, [Validators.min(0), Validators.max(1)]],
+      innerRadius: [settings.innerRadius, [Validators.min(0), Validators.max(1)]],
+      tilt: [settings.tilt, [Validators.min(0), Validators.max(1)]],
 
       // Stroke settings
 

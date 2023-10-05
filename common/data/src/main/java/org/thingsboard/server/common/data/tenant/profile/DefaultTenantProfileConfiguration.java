@@ -20,6 +20,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.thingsboard.server.common.data.ApiUsageRecordKey;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.TenantProfileType;
 
 @AllArgsConstructor
@@ -27,6 +28,8 @@ import org.thingsboard.server.common.data.TenantProfileType;
 @Builder
 @Data
 public class DefaultTenantProfileConfiguration implements TenantProfileConfiguration {
+
+    private static final long serialVersionUID = -7134932690332578595L;
 
     private long maxDevices;
     private long maxAssets;
@@ -46,14 +49,18 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
 
     private String tenantEntityExportRateLimit;
     private String tenantEntityImportRateLimit;
+    private String tenantNotificationRequestsRateLimit;
+    private String tenantNotificationRequestsPerRuleRateLimit;
 
     private long maxTransportMessages;
     private long maxTransportDataPoints;
     private long maxREExecutions;
     private long maxJSExecutions;
+    private long maxTbelExecutions;
     private long maxDPStorageDays;
     private int maxRuleNodeExecutionsPerMessage;
     private long maxEmails;
+    private Boolean smsEnabled;
     private long maxSms;
     private long maxCreatedAlarms;
 
@@ -76,6 +83,8 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     private int defaultStorageTtlDays;
     private int alarmsTtlDays;
     private int rpcTtlDays;
+    private int queueStatsTtlDays;
+    private int ruleEngineExceptionsTtlDays;
 
     private double warnThreshold;
 
@@ -88,6 +97,8 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
                 return maxTransportDataPoints;
             case JS_EXEC_COUNT:
                 return maxJSExecutions;
+            case TBEL_EXEC_COUNT:
+                return maxTbelExecutions;
             case RE_EXEC_COUNT:
                 return maxREExecutions;
             case STORAGE_DP_COUNT:
@@ -103,8 +114,37 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     }
 
     @Override
+    public boolean getProfileFeatureEnabled(ApiUsageRecordKey key) {
+        switch (key) {
+            case SMS_EXEC_COUNT:
+                return smsEnabled == null || Boolean.TRUE.equals(smsEnabled);
+            default:
+                return true;
+        }
+    }
+
+    @Override
     public long getWarnThreshold(ApiUsageRecordKey key) {
         return (long) (getProfileThreshold(key) * (warnThreshold > 0.0 ? warnThreshold : 0.8));
+    }
+
+    public long getEntitiesLimit(EntityType entityType) {
+        switch (entityType) {
+            case DEVICE:
+                return maxDevices;
+            case ASSET:
+                return maxAssets;
+            case CUSTOMER:
+                return maxCustomers;
+            case USER:
+                return maxUsers;
+            case DASHBOARD:
+                return maxDashboards;
+            case RULE_CHAIN:
+                return maxRuleChains;
+            default:
+                return 0;
+        }
     }
 
     @Override

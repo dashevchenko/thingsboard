@@ -18,6 +18,7 @@ import { Direction, SortOrder } from '@shared/models/page/sort-order';
 import { emptyPageData, PageData } from '@shared/models/page/page-data';
 import { getDescendantProp, isObject } from '@core/utils';
 import { SortDirection } from '@angular/material/sort';
+import { EntitiesTableAction } from '@home/models/entity/entity-table-component.models';
 
 export const MAX_SAFE_PAGE_SIZE = 2147483647;
 
@@ -27,6 +28,7 @@ export interface PageQueryParam extends Partial<SortOrder>{
   textSearch?: string;
   pageSize?: number;
   page?: number;
+  action?: EntitiesTableAction;
 }
 
 export function defaultPageLinkSearchFunction(searchProperty?: string): PageLinkSearchFunction<any> {
@@ -113,8 +115,9 @@ export class PageLink {
 
   public toQuery(): string {
     let query = `?pageSize=${this.pageSize}&page=${this.page}`;
-    if (this.textSearch && this.textSearch.length) {
-      const textSearch = encodeURIComponent(this.textSearch);
+    const textSearchParams = this.textSearch?.trim();
+    if (textSearchParams?.length) {
+      const textSearch = encodeURIComponent(textSearchParams);
       query += `&textSearch=${textSearch}`;
     }
     if (this.sortOrder) {

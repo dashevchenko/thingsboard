@@ -35,29 +35,34 @@ import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
+import org.thingsboard.server.dao.tenant.TenantProfileService;
+import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.user.UserService;
+import org.thingsboard.server.dao.widget.WidgetTypeService;
 import org.thingsboard.server.dao.widget.WidgetsBundleService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.edge.rpc.EdgeEventStorageSettings;
 import org.thingsboard.server.service.edge.rpc.constructor.EdgeMsgConstructor;
-import org.thingsboard.server.service.edge.rpc.processor.AdminSettingsEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.AlarmEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.AssetEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.AssetProfileEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.CustomerEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.DashboardEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.DeviceEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.DeviceProfileEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.EntityViewEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.OtaPackageEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.QueueEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.RelationEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.RuleChainEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.TelemetryEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.UserEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.WidgetBundleEdgeProcessor;
-import org.thingsboard.server.service.edge.rpc.processor.WidgetTypeEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.alarm.AlarmEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.asset.AssetEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.asset.AssetProfileEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.customer.CustomerEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.dashboard.DashboardEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.device.DeviceEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.device.DeviceProfileEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.edge.EdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.entityview.EntityViewEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.ota.OtaPackageEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.queue.QueueEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.relation.RelationEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.rule.RuleChainEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.settings.AdminSettingsEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.telemetry.TelemetryEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.tenant.TenantEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.tenant.TenantProfileEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.user.UserEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.widget.WidgetBundleEdgeProcessor;
+import org.thingsboard.server.service.edge.rpc.processor.widget.WidgetTypeEdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.sync.EdgeRequestsService;
 import org.thingsboard.server.service.executors.DbCallbackExecutorService;
 import org.thingsboard.server.service.executors.GrpcCallbackExecutorService;
@@ -114,6 +119,9 @@ public class EdgeContextComponent {
     private CustomerService customerService;
 
     @Autowired
+    private WidgetTypeService widgetTypeService;
+
+    @Autowired
     private WidgetsBundleService widgetsBundleService;
 
     @Autowired
@@ -121,6 +129,12 @@ public class EdgeContextComponent {
 
     @Autowired
     private OtaPackageService otaPackageService;
+
+    @Autowired
+    private TenantService tenantService;
+
+    @Autowired
+    private TenantProfileService tenantProfileService;
 
     @Autowired
     private QueueService queueService;
@@ -178,6 +192,12 @@ public class EdgeContextComponent {
 
     @Autowired
     private QueueEdgeProcessor queueEdgeProcessor;
+
+    @Autowired
+    private TenantEdgeProcessor tenantEdgeProcessor;
+
+    @Autowired
+    private TenantProfileEdgeProcessor tenantProfileEdgeProcessor;
 
     @Autowired
     private EdgeMsgConstructor edgeMsgConstructor;

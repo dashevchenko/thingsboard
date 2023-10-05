@@ -92,12 +92,8 @@ public class BaseEventService implements EventService {
 
     private <T extends Event> void truncateField(T event, Function<T, String> getter, BiConsumer<T, String> setter) {
         var str = getter.apply(event);
-        if (StringUtils.isNotEmpty(str)) {
-            var length = str.length();
-            if (length > maxDebugEventSymbols) {
-                setter.accept(event, str.substring(0, maxDebugEventSymbols) + "...[truncated " + (length - maxDebugEventSymbols) + " symbols]");
-            }
-        }
+        str = StringUtils.truncate(str, maxDebugEventSymbols);
+        setter.accept(event, str);
     }
 
     @Override
@@ -148,4 +144,5 @@ public class BaseEventService implements EventService {
     private List<EventInfo> convert(EntityType entityType, List<? extends Event> list) {
         return list == null ? null : list.stream().map(e -> e.toInfo(entityType)).collect(Collectors.toList());
     }
+
 }

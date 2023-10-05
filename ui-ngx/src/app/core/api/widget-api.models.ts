@@ -56,6 +56,7 @@ import { AlarmDataService } from '@core/api/alarm-data.service';
 import { IDashboardController } from '@home/components/dashboard-page/dashboard-page.models';
 import { PopoverPlacement } from '@shared/components/popover.models';
 import { PersistentRpc } from '@shared/models/rpc.models';
+import { EventEmitter } from '@angular/core';
 
 export interface TimewindowFunctions {
   onUpdateTimewindow: (startTimeMs: number, endTimeMs: number, interval?: number) => void;
@@ -88,6 +89,7 @@ export interface WidgetActionsApi {
   handleWidgetAction: ($event: Event, descriptor: WidgetActionDescriptor,
                        entityId?: EntityId, entityName?: string, additionalParams?: any, entityLabel?: string) => void;
   elementClick: ($event: Event) => void;
+  cardClick: ($event: Event) => void;
   getActiveEntityInfo: () => SubscriptionEntityInfo;
   openDashboardStateInSeparateDialog: (targetDashboardStateId: string, params?: StateParams, dialogTitle?: string,
                                        hideDashboardToolbar?: boolean, dialogWidth?: number, dialogHeight?: number) => void;
@@ -159,7 +161,7 @@ export interface IStateController {
   openRightLayout(): void;
   preserveState(): void;
   cleanupPreservedStates(): void;
-  navigatePrevState(index: number): void;
+  navigatePrevState(index: number, params?: StateParams): void;
   getStateId(): string;
   getStateIndex(): number;
   getStateIdAtIndex(index: number): string;
@@ -283,6 +285,8 @@ export interface IWidgetSubscription {
 
   legendData: LegendData;
 
+  readonly firstDatasource?: Datasource;
+
   datasourcePages?: PageData<Datasource>[];
   dataPages?: PageData<Array<DatasourceData>>[];
   datasources?: Array<Datasource>;
@@ -337,6 +341,8 @@ export interface IWidgetSubscription {
   subscribeForPaginatedData(datasourceIndex: number,
                             pageLink: EntityDataPageLink,
                             keyFilters: KeyFilter[]): Observable<any>;
+
+  paginatedDataSubscriptionUpdated: EventEmitter<void>;
 
   subscribeForAlarms(pageLink: AlarmDataPageLink,
                      keyFilters: KeyFilter[]): void;

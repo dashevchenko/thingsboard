@@ -33,6 +33,8 @@ import {
 } from '@home/models/entity/entities-table-config.models';
 import { ActivatedRoute } from '@angular/router';
 
+export type EntitiesTableAction = 'add';
+
 export interface IEntitiesTableComponent {
   entitiesTableConfig: EntityTableConfig<BaseData<HasId>>;
   translations: EntityTypeTranslation;
@@ -78,6 +80,7 @@ export interface IEntitiesTableComponent {
   exitFilterMode(): void;
   resetSortAndFilter(update?: boolean, preserveTimewindow?: boolean): void;
   columnsUpdated(resetData?: boolean): void;
+  cellActionDescriptorsUpdated(): void;
   headerCellStyle(column: EntityColumn<BaseData<HasId>>): any;
   clearCellCache(col: number, row: number): void;
   cellContent(entity: BaseData<HasId>, column: EntityColumn<BaseData<HasId>>, row: number): any;
@@ -85,4 +88,5 @@ export interface IEntitiesTableComponent {
   cellStyle(entity: BaseData<HasId>, column: EntityColumn<BaseData<HasId>>, row: number): any;
   trackByColumnKey(index, column: EntityTableColumn<BaseData<HasId>>): string;
   trackByEntityId(index: number, entity: BaseData<HasId>): string;
+  detectChanges(): void;
 }

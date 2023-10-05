@@ -27,7 +27,7 @@ import {
   SimpleChanges,
   ViewChild
 } from '@angular/core';
-import { ControlValueAccessor, FormBuilder, FormGroup, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, UntypedFormBuilder, UntypedFormGroup, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { Observable, of } from 'rxjs';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
@@ -48,6 +48,8 @@ import { MatAutocomplete } from '@angular/material/autocomplete';
 import { AddDeviceProfileDialogComponent, AddDeviceProfileDialogData } from './add-device-profile-dialog.component';
 import { emptyPageData } from '@shared/models/page/page-data';
 import { getEntityDetailsPageURL } from '@core/utils';
+import { SubscriptSizing } from '@angular/material/form-field';
+import { coerceBoolean } from '@shared/decorators/coercion';
 
 @Component({
   selector: 'tb-device-profile-autocomplete',
@@ -61,11 +63,15 @@ import { getEntityDetailsPageURL } from '@core/utils';
 })
 export class DeviceProfileAutocompleteComponent implements ControlValueAccessor, OnInit, OnChanges {
 
-  selectDeviceProfileFormGroup: FormGroup;
+  selectDeviceProfileFormGroup: UntypedFormGroup;
 
   modelValue: DeviceProfileId | null;
 
   @Input()
+  subscriptSizing: SubscriptSizing = 'fixed';
+
+  @Input()
+  @coerceBoolean()
   selectDefaultProfile = false;
 
   @Input()
@@ -75,9 +81,11 @@ export class DeviceProfileAutocompleteComponent implements ControlValueAccessor,
   displayAllOnEmpty = false;
 
   @Input()
+  @coerceBoolean()
   editProfileEnabled = true;
 
   @Input()
+  @coerceBoolean()
   addNewProfile = true;
 
   @Input()
@@ -86,14 +94,9 @@ export class DeviceProfileAutocompleteComponent implements ControlValueAccessor,
   @Input()
   transportType: DeviceTransportType = null;
 
-  private requiredValue: boolean;
-  get required(): boolean {
-    return this.requiredValue;
-  }
   @Input()
-  set required(value: boolean) {
-    this.requiredValue = coerceBooleanProperty(value);
-  }
+  @coerceBoolean()
+  required = false;
 
   @Input()
   disabled: boolean;
@@ -133,7 +136,7 @@ export class DeviceProfileAutocompleteComponent implements ControlValueAccessor,
               public translate: TranslateService,
               public truncate: TruncatePipe,
               private deviceProfileService: DeviceProfileService,
-              private fb: FormBuilder,
+              private fb: UntypedFormBuilder,
               private zone: NgZone,
               private dialog: MatDialog) {
     this.selectDeviceProfileFormGroup = this.fb.group({

@@ -25,7 +25,7 @@ import {
   Output,
   ViewChild
 } from '@angular/core';
-import { ControlValueAccessor, FormBuilder, FormGroup, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, UntypedFormBuilder, UntypedFormGroup, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { Observable, of } from 'rxjs';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
@@ -45,6 +45,8 @@ import { AssetProfileId } from '@shared/models/id/asset-profile-id';
 import { AssetProfile, AssetProfileInfo } from '@shared/models/asset.models';
 import { AssetProfileService } from '@core/http/asset-profile.service';
 import { AssetProfileDialogComponent, AssetProfileDialogData } from './asset-profile-dialog.component';
+import { SubscriptSizing } from '@angular/material/form-field';
+import { coerceBoolean } from '@shared/decorators/coercion';
 
 @Component({
   selector: 'tb-asset-profile-autocomplete',
@@ -58,9 +60,12 @@ import { AssetProfileDialogComponent, AssetProfileDialogData } from './asset-pro
 })
 export class AssetProfileAutocompleteComponent implements ControlValueAccessor, OnInit {
 
-  selectAssetProfileFormGroup: FormGroup;
+  selectAssetProfileFormGroup: UntypedFormGroup;
 
   modelValue: AssetProfileId | null;
+
+  @Input()
+  subscriptSizing: SubscriptSizing = 'fixed';
 
   @Input()
   selectDefaultProfile = false;
@@ -80,14 +85,9 @@ export class AssetProfileAutocompleteComponent implements ControlValueAccessor, 
   @Input()
   showDetailsPageLink = false;
 
-  private requiredValue: boolean;
-  get required(): boolean {
-    return this.requiredValue;
-  }
   @Input()
-  set required(value: boolean) {
-    this.requiredValue = coerceBooleanProperty(value);
-  }
+  @coerceBoolean()
+  required = false;
 
   @Input()
   disabled: boolean;
@@ -125,7 +125,7 @@ export class AssetProfileAutocompleteComponent implements ControlValueAccessor, 
               public translate: TranslateService,
               public truncate: TruncatePipe,
               private assetProfileService: AssetProfileService,
-              private fb: FormBuilder,
+              private fb: UntypedFormBuilder,
               private zone: NgZone,
               private dialog: MatDialog) {
     this.selectAssetProfileFormGroup = this.fb.group({

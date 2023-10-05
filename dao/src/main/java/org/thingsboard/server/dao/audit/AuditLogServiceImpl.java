@@ -30,6 +30,7 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.alarm.AlarmComment;
 import org.thingsboard.server.common.data.audit.ActionStatus;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.audit.AuditLog;
@@ -121,13 +122,13 @@ public class AuditLogServiceImpl implements AuditLogService {
             JsonNode actionData = constructActionData(entityId, entity, actionType, additionalInfo);
             ActionStatus actionStatus = ActionStatus.SUCCESS;
             String failureDetails = "";
-            String entityName = "";
+            String entityName = "N/A";
             if (entity != null) {
                 entityName = entity.getName();
             } else {
                 try {
-                    entityName = entityService.fetchEntityNameAsync(tenantId, entityId).get();
-                } catch (Exception ex) {
+                    entityName = entityService.fetchEntityName(tenantId, entityId).orElse(entityName);
+                } catch (Exception ignored) {
                 }
             }
             if (e != null) {
@@ -165,6 +166,8 @@ public class AuditLogServiceImpl implements AuditLogService {
             case UPDATED:
             case ALARM_ACK:
             case ALARM_CLEAR:
+            case ALARM_ASSIGNED:
+            case ALARM_UNASSIGNED:
             case RELATIONS_DELETED:
             case ASSIGNED_TO_TENANT:
                 if (entity != null) {
@@ -181,6 +184,12 @@ public class AuditLogServiceImpl implements AuditLogService {
                         actionData.set("metadata", ruleChainMetaDataNode);
                     }
                 }
+                break;
+            case ADDED_COMMENT:
+            case UPDATED_COMMENT:
+            case DELETED_COMMENT:
+                AlarmComment comment = extractParameter(AlarmComment.class, additionalInfo);
+                actionData.set("comment", comment.getComment());
                 break;
             case DELETED:
             case ACTIVATED:
@@ -316,6 +325,10 @@ public class AuditLogServiceImpl implements AuditLogService {
                 actionData.put("entityId", strEntityId);
                 actionData.put("unassignedEdgeId", strEdgeId);
                 actionData.put("unassignedEdgeName", strEdgeName);
+                break;
+            case SMS_SENT:
+                String number = extractParameter(String.class, 0, additionalInfo);
+                actionData.put("recipientNumber", number);
                 break;
         }
         return actionData;

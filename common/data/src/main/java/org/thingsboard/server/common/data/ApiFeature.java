@@ -22,9 +22,10 @@ public enum ApiFeature {
     DB("dbApiState", "Telemetry persistence"),
     RE("ruleEngineApiState", "Rule Engine execution"),
     JS("jsExecutionApiState", "JavaScript functions execution"),
+    TBEL("tbelExecutionApiState", "Tbel functions execution"),
     EMAIL("emailApiState", "Email messages"),
     SMS("smsApiState", "SMS messages"),
-    ALARM("alarmApiState", "Created alarms");
+    ALARM("alarmApiState", "Alarms");
 
     @Getter
     private final String apiStateKey;
