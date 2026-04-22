@@ -90,12 +90,14 @@ export function sortItems(item1: any, item2: any, property: string, asc: boolean
       const item1Empty = item1Value === null || item1Value === undefined || item1Value === '';
       const item2Empty = item2Value === null || item2Value === undefined || item2Value === '';
       if (!item1Empty && item2Empty) {
-        result = 1;
+        return asc ? 1 : -1;
       } else if (item1Empty && !item2Empty) {
-        result = -1;
+        return asc ? -1 : 1;
       } else if (!item1Empty && !item2Empty) {
-        const num1 = Number(item1Value);
-        const num2 = Number(item2Value);
+        const str1 = String(item1Value).trim();
+        const str2 = String(item2Value).trim();
+        const num1 = str1.length ? Number(str1) : NaN;
+        const num2 = str2.length ? Number(str2) : NaN;
         if (!isNaN(num1) && !isNaN(num2)) {
           result = num1 - num2;
         } else {
